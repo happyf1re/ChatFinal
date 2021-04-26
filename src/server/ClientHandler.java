@@ -37,6 +37,10 @@ public class ClientHandler {
             new Thread(() -> {
                 boolean isExit = false;
                 try {
+                    //2. Добавить отключение неавторизованных пользователей по таймауту
+                    // (120 сек. ждём после подключения клиента, и если он не авторизовался за это время, закрываем соединение).
+                    //Таймаут (додумался сам, до просмотра занятия)
+                    socket.setSoTimeout(120000);
                     while (true) {
                         String str = in.readUTF();
                         if (str.startsWith("/auth")) {
@@ -46,6 +50,7 @@ public class ClientHandler {
                                 if (!server.isNickBusy(nick)) {
                                     sendMsg("/auth-OK");
                                     setNickname(nick);
+                                    socket.setSoTimeout(0);
                                     server.subscribe(ClientHandler.this);
                                     break;
                                 } else {
@@ -77,18 +82,17 @@ public class ClientHandler {
                             String str = in.readUTF();
                             // для всех служебных команд и личных сообщений
                             if (str.startsWith("/") || str.startsWith("@")) {
+                                //4. Сделать блокировку личных сообщений если пользователь в blacklist
+                                if (str.startsWith("@") && (!AuthService.checkBlacklist(this.getNickname()))) {
+                                    String[] tokens = str.split(" ", 2);
+                                    server.sendPrivateMsg(this, tokens[0].substring(1), tokens[1]);
+                                }
                                 if ("/end".equalsIgnoreCase(str)) {
                                     // для оповещения клиента, т.к. без сервера клиент работать не должен
                                     out.writeUTF("/serverClosed");
                                     System.out.println("Client (" + socket.getInetAddress() + ") exited");
                                     break;
                                 }
-                                // вторая часть ДЗ. выполнение
-                                if (str.startsWith("@") && (!AuthService.checkBlacklist(this.getNickname()))) {
-                                    String[] tokens = str.split(" ", 2);
-                                    server.sendPrivateMsg(this, tokens[0].substring(1), tokens[1]);
-                                }
-                                // черный список для пользователя. но пока что только в рамках одного запуска программы
                                 if (str.startsWith("/blacklist ")) {
                                     String[] tokens = str.split(" ");
                                     AuthService.addToBlacklist(tokens[1]);
