@@ -26,6 +26,10 @@ public class ClientHandler {
     // черный список у пользователя, а не у сервера
     List<String> blackList;
 
+
+    //На серверной стороне сетевого чата реализовать управление потоками через ExecutorService.
+    ExecutorService service = Executors.newFixedThreadPool(1);
+
     public ClientHandler(ConsoleServer server, Socket socket) {
         try {
             this.server = server;
@@ -34,12 +38,12 @@ public class ClientHandler {
             this.out = new DataOutputStream(socket.getOutputStream());
             this.blackList = new ArrayList<>();
 
-            new Thread(() -> {
+
+//На серверной стороне сетевого чата реализовать управление потоками через ExecutorService.
+            service.execute(() -> {
                 boolean isExit = false;
                 try {
-                    //2. Добавить отключение неавторизованных пользователей по таймауту
                     // (120 сек. ждём после подключения клиента, и если он не авторизовался за это время, закрываем соединение).
-                    //Таймаут (додумался сам, до просмотра занятия)
                     socket.setSoTimeout(120000);
                     while (true) {
                         String str = in.readUTF();
@@ -82,7 +86,7 @@ public class ClientHandler {
                             String str = in.readUTF();
                             // для всех служебных команд и личных сообщений
                             if (str.startsWith("/") || str.startsWith("@")) {
-                                //4. Сделать блокировку личных сообщений если пользователь в blacklist
+                                //блокировка личных сообщений если пользователь в blacklist (надо доделать, иначе блокирует для всех)
                                 if (str.startsWith("@") && (!AuthService.checkBlacklist(this.getNickname()))) {
                                     String[] tokens = str.split(" ", 2);
                                     server.sendPrivateMsg(this, tokens[0].substring(1), tokens[1]);
@@ -125,10 +129,12 @@ public class ClientHandler {
                     }
                     server.unsubscribe(this);
                 }
-            }).start();
+            });
         } catch (IOException e) {
             e.printStackTrace();
         }
+        //шатдаун ExecutorService
+        service.shutdown();
     }
 
     public void sendMsg(String msg) {
